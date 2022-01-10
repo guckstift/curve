@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Curve</title>
+	</head>
+	<body>
+		<canvas id="canvas" width="512" height="512"></canvas>
+		<script>
+			let gl = canvas.getContext("webgl", {antialias: false});
+			let vert = gl.createShader(gl.VERTEX_SHADER);
+			let frag = gl.createShader(gl.FRAGMENT_SHADER);
+			let prog = gl.createProgram();
+			
+			gl.shaderSource(vert, `
+				attribute vec2 pos;
+				attribute vec2 uv;
+				
+				varying vec2 v_uv;
+				
+				void main()
+				{
+					gl_Position = vec4(pos, 0, 1);
+					v_uv = uv;
+				}
+			`);
+			gl.shaderSource(frag, `
+				precision highp float;
+				
+				varying vec2 v_uv;
+				
+				void main()
+				{
+					float x = v_uv.x;
+					float y = v_uv.y;
+					if(y > x*x)
+						gl_FragColor = vec4(1, 0, 0, 1);
+				}
+			`);
+			gl.compileShader(vert);
+			gl.compileShader(frag);
+			
+			gl.attachShader(prog, vert);
+			gl.attachShader(prog, frag);
+			
+			gl.linkProgram(prog);
+			
+			gl.useProgram(prog);
+			
+			let buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+				-.5,0,  0,0,
+				  0,1, .5,0,
+				+.5,0,  1,1,
+			]), gl.STATIC_DRAW);
+			
+			let pos = gl.getAttribLocation(prog, "pos");
+			gl.enableVertexAttribArray(pos);
+			gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 4*4, 0);
+			
+			let uv = gl.getAttribLocation(prog, "uv");
+			gl.enableVertexAttribArray(uv);
+			gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 4*4, 2*4);
+			
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+		</script>
+	</body>
+</html>
