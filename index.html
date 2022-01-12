@@ -6,6 +6,8 @@
 	<body>
 		<canvas id="canvas" width="512" height="512"></canvas>
 		<script>
+			const scale_factor = 4;
+			
 			let gl = canvas.getContext("webgl", {antialias: false});
 			let vert = gl.createShader(gl.VERTEX_SHADER);
 			let frag = gl.createShader(gl.FRAGMENT_SHADER);
@@ -33,7 +35,9 @@
 					float x = v_uv.x;
 					float y = v_uv.y;
 					if(y > x*x)
-						gl_FragColor = vec4(1, 0, 0, 1);
+						gl_FragColor = vec4(0, 0, 0, 1);
+					else
+						discard;
 				}
 			`);
 			gl.compileShader(vert);
@@ -49,9 +53,9 @@
 			let buf = gl.createBuffer();
 			gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-				-.5,0,  0,0,
+				-1,-1,  0,0,
 				  0,1, .5,0,
-				+.5,0,  1,1,
+				+1,-.75,  1,1,
 			]), gl.STATIC_DRAW);
 			
 			let pos = gl.getAttribLocation(prog, "pos");
@@ -62,7 +66,89 @@
 			gl.enableVertexAttribArray(uv);
 			gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 4*4, 2*4);
 			
+			let texbuf = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texbuf);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,
+				gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T,
+				gl.CLAMP_TO_EDGE);
+			gl.texImage2D(
+				gl.TEXTURE_2D, 0, gl.RGBA, 512*scale_factor, 512*scale_factor,
+				0, gl.RGBA, gl.UNSIGNED_BYTE, null
+			);
+			gl.viewport(0, 0, 512*scale_factor, 512*scale_factor);
+			
+			let fb = gl.createFramebuffer();
+			gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+			gl.framebufferTexture2D(
+				gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texbuf, 0
+			);
+			
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+			
+			let buf2 = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buf2);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+				-1,-1,  0,0,
+				-1,+1,  0,1,
+				+1,-1,  1,0,
+				+1,+1,  1,1,
+			]), gl.STATIC_DRAW);
+			
+			let prog2 = gl.createProgram();
+			let frag2 = gl.createShader(gl.FRAGMENT_SHADER);
+			gl.shaderSource(frag2, `
+				precision highp float;
+				
+				uniform sampler2D tex;
+				uniform vec2 texsize;
+				const int scale_factor = ${scale_factor};
+				varying vec2 v_uv;
+				
+				void main()
+				{
+					vec4 sum = vec4(0);
+					
+					for(int y=0; y<=scale_factor; y++) {
+						for(int x=0; x<=scale_factor; x++) {
+							vec2 pos = v_uv + vec2(x, y) / texsize;
+							sum += texture2D(tex, pos);
+						}
+					}
+					
+					gl_FragColor = sum / float(scale_factor * scale_factor);
+				}
+			`);
+			gl.compileShader(frag2);
+			console.log(gl.getShaderInfoLog(frag2));
+			
+			gl.attachShader(prog2, vert);
+			gl.attachShader(prog2, frag2);
+			
+			gl.linkProgram(prog2);
+			console.log(gl.getProgramInfoLog(prog2));
+			
+			gl.useProgram(prog2);
+			
+			let pos2 = gl.getAttribLocation(prog2, "pos");
+			gl.enableVertexAttribArray(pos2);
+			gl.vertexAttribPointer(pos2, 2, gl.FLOAT, false, 4*4, 0);
+			
+			let uv2 = gl.getAttribLocation(prog2, "uv");
+			gl.enableVertexAttribArray(uv2);
+			gl.vertexAttribPointer(uv2, 2, gl.FLOAT, false, 4*4, 2*4);
+			
+			let tex_u = gl.getUniformLocation(prog2, "tex");
+			let texsize = gl.getUniformLocation(prog2, "texsize");
+			gl.uniform1i(tex_u, 0);
+			gl.uniform2f(texsize, 512*scale_factor, 512*scale_factor);
+			
+			gl.viewport(0, 0, 512, 512);
+			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 		</script>
 	</body>
 </html>
